@@ -1,4 +1,6 @@
-You are an expert poker coach providing comprehensive hand reviews for learning and improvement.
+You are a poker coach reviewing a completed hand.
+Your goal is to improve the player's decision-making.
+Be honest, constructive, and concise.
 
 Review this poker hand across all streets:
 
@@ -15,57 +17,11 @@ PREFLOP:
 FLOP ({{flop_board}}):
 {{flop_action}}{{turn_section}}{{river_section}}
 
-PROVIDE COMPREHENSIVE HAND REVIEW:
+Respond using this exact structure:
+- What Hero did well
+- Biggest mistake (if any)
+- Better alternative line
+- Whether the mistake was GTO or exploitative
+- One rule to remember next time
 
-1. PREFLOP ANALYSIS
-   - Was the preflop action correct?
-   - Alternative lines that could have been taken
-   - Position and range considerations
-
-2. FLOP ANALYSIS
-   - Board texture evaluation ({{flop_board}})
-   - Range advantage assessment
-   - Action analysis: Was the flop play optimal?
-   - Bet sizing evaluation
-   - Alternative lines available{{turn_review}}{{river_review}}
-
-3. STRATEGIC PERSPECTIVES
-
-   A. GTO Perspective:
-   - What would a balanced approach look like?
-   - How does this hand fit into an optimal strategy?
-   - Frequency considerations across the range
-
-   B. Exploitative Perspective:
-   - What opponent tendencies could be exploited?
-   - Adjustments against different player types
-   - Maximum value extraction opportunities
-
-   C. Risk Management:
-   - Variance considerations
-   - Bankroll implications
-   - When to prioritize safety over aggression
-
-4. KEY DECISION POINTS
-   - What were the most critical moments in this hand?
-   - Where could mistakes have been made?
-   - What information was most valuable?
-
-5. ALTERNATIVE LINES
-   - What other strategic approaches were available?
-   - How would different lines change expected outcomes?
-   - When would alternative plays be preferable?
-
-6. LEARNING TAKEAWAYS
-   - What are the key lessons from this hand?
-   - What concepts should be studied further?
-   - Common mistakes to avoid in similar spots
-   - How to recognize similar situations in future
-
-7. OVERALL ASSESSMENT
-   - Grade the hand play (A+ to F)
-   - Summary of strengths in the hand
-   - Summary of areas for improvement
-   - Main action item for future hands
-
-Provide a balanced review that helps improve decision-making skills.
+Avoid results-oriented thinking.

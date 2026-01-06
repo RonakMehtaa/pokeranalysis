@@ -391,3 +391,130 @@ class PokerHandSchema(BaseModel):
                 }
             ]
         }
+
+
+class PlayerEquity(BaseModel):
+    """Model for a single player in equity calculation."""
+    id: str = Field(..., description="Player identifier (e.g., 'Player1', 'Hero', 'Villain')")
+    hole_cards: List[str] = Field(
+        ...,
+        min_length=2,
+        max_length=2,
+        description="Two hole cards (e.g., ['Ah', 'Kh'])"
+    )
+    
+    @field_validator('hole_cards')
+    @classmethod
+    def validate_hole_cards(cls, v: List[str]) -> List[str]:
+        """Validate hole card notation."""
+        if len(v) != 2:
+            raise ValueError("Each player must have exactly 2 hole cards")
+        
+        card_pattern = r'^(A|K|Q|J|T|9|8|7|6|5|4|3|2)(h|d|c|s)$'
+        for card in v:
+            if not re.match(card_pattern, card):
+                raise ValueError(
+                    f"Invalid card notation: {card}. "
+                    "Use format like: Ah, Kd, 7c, Ts (rank + suit)"
+                )
+        
+        # Check for duplicate hole cards
+        if v[0] == v[1]:
+            raise ValueError(f"Player cannot have duplicate hole cards: {v}")
+        
+        return v
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "Hero",
+                "hole_cards": ["Ah", "Kh"]
+            }
+        }
+
+
+class EquityCalculatorRequest(BaseModel):
+    """Request model for equity calculator endpoint."""
+    players: List[PlayerEquity] = Field(
+        ..., 
+        min_length=2,
+        max_length=6,
+        description="List of players with IDs and hole cards (2-6 players)"
+    )
+    board_cards: Optional[List[str]] = Field(
+        None,
+        max_length=5,
+        description="Community cards (0-5 cards, e.g., ['As', 'Kd', '7c'])"
+    )
+    iterations: Optional[int] = Field(
+        20000,
+        ge=1000,
+        le=100000,
+        description="Number of Monte Carlo simulations (1,000 - 100,000)"
+    )
+    
+    @field_validator('board_cards')
+    @classmethod
+    def validate_board_cards(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate board card notation and size."""
+        if v is None:
+            return v
+        
+        if len(v) > 5:
+            raise ValueError("Board cannot have more than 5 cards")
+        
+        card_pattern = r'^(A|K|Q|J|T|9|8|7|6|5|4|3|2)(h|d|c|s)$'
+        for card in v:
+            if not re.match(card_pattern, card):
+                raise ValueError(
+                    f"Invalid card notation: {card}. "
+                    "Use format like: Ah, Kd, 7c, Ts (rank + suit)"
+                )
+        
+        # Check for duplicate board cards
+        if len(set(v)) != len(v):
+            raise ValueError(f"Duplicate cards in board: {v}")
+        
+        return v
+    
+    @model_validator(mode='after')
+    def validate_no_duplicate_cards_across_players(self) -> 'EquityCalculatorRequest':
+        """Ensure no duplicate cards across all players and board."""
+        all_cards = []
+        
+        # Collect all hole cards
+        for player in self.players:
+            all_cards.extend(player.hole_cards)
+        
+        # Collect board cards
+        if self.board_cards:
+            all_cards.extend(self.board_cards)
+        
+        # Check for duplicates
+        if len(set(all_cards)) != len(all_cards):
+            duplicates = [card for card in set(all_cards) if all_cards.count(card) > 1]
+            raise ValueError(f"Duplicate cards detected: {', '.join(duplicates)}")
+        
+        return self
+    
+    @model_validator(mode='after')
+    def validate_unique_player_ids(self) -> 'EquityCalculatorRequest':
+        """Ensure all player IDs are unique."""
+        player_ids = [player.id for player in self.players]
+        if len(set(player_ids)) != len(player_ids):
+            duplicates = [pid for pid in set(player_ids) if player_ids.count(pid) > 1]
+            raise ValueError(f"Duplicate player IDs: {', '.join(duplicates)}")
+        
+        return self
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "players": [
+                    {"id": "Hero", "hole_cards": ["Ah", "Kh"]},
+                    {"id": "Villain", "hole_cards": ["Qd", "Qc"]}
+                ],
+                "board_cards": ["As", "Kd", "7c"],
+                "iterations": 20000
+            }
+        }

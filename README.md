@@ -1,14 +1,14 @@
-# Poker Learning Tool
+# Poker Analysis Tool
 
-**A data-driven educational web app for mastering preflop poker decisions.**
+**A data-driven poker analysis web app for mastering preflop and postflop decisions.**
 
 ## 🎯 Purpose
 
-This tool helps poker players learn and memorize preflop ranges through:
+This tool helps poker players analyze and improve their game through:
 - Interactive range charts with explanations
 - Instant decision recommendations
 - **AI-powered hand analysis** (optional Ollama integration)
-- Clean, distraction-free UI optimized for learning
+- Clean, distraction-free UI optimized for analysis
 
 ## ⚠️ Important: Data-Driven Architecture
 

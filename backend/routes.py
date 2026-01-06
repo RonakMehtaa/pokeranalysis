@@ -1,5 +1,5 @@
 """
-API Routes for Poker Learning App
+API Routes for Poker Analysis App
 
 IMPORTANT: These routes contain NO poker strategy logic.
 All poker decisions are loaded from user-defined JSON range files.
@@ -14,7 +14,8 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from range_loader import range_loader
 from services.llm_client import ollama_client
-from models import PokerHandSchema, HandAnalysisRequest, PreflopDecisionRequest, LLMAnalysisRequest
+from services.equity_calculator import equity_calculator, EquityCalculator
+from models import PokerHandSchema, HandAnalysisRequest, PreflopDecisionRequest, LLMAnalysisRequest, EquityCalculatorRequest
 from typing import Literal
 from pathlib import Path
 
@@ -186,7 +187,7 @@ async def analyze_hand_with_llm(request: LLMAnalysisRequest):
     explanation = range_data.get_hand_explanation(request.hand)
     
     # Construct prompt (NO poker strategy - just structured data)
-    prompt = f"""You are a poker learning assistant. Analyze the following hand based on the provided range data.
+    prompt = f"""You are a poker analysis assistant. Analyze the following hand based on the provided range data.
 
 Hand: {request.hand}
 Position: {request.position}
@@ -227,6 +228,93 @@ Keep the analysis educational and focused on learning."""
             status_code=503,
             detail=f"LLM service error: {str(e)}"
         )
+
+@router.post("/equity/calculate")
+def calculate_equity(request: EquityCalculatorRequest):
+    """
+    Calculate poker hand equity using Monte Carlo simulation.
+    
+    This is a pure computational tool - NO poker strategy involved.
+    Uses Monte Carlo simulation to calculate win/tie/equity percentages.
+    
+    Parameters:
+    - players: List of players with unique IDs and hole cards (2-6 players)
+      - id: Player identifier (e.g., "Hero", "Villain", "Player1")
+      - hole_cards: Two cards in format like ["Ah", "Kh"]
+    - board_cards: Optional community cards (0-5 cards)
+    - iterations: Number of simulations (default: 20,000, range: 1,000-100,000)
+    
+    Returns:
+    - Results for each player with win%, tie%, and equity%
+    - Keyed by player ID instead of numeric index
+    
+    Validation:
+    - No duplicate cards across all players and board
+    - Valid card notation (As, Kh, Td, 2c, etc.)
+    - Board size <= 5
+    - Unique player IDs
+    - 2-6 players only
+    
+    Example Request:
+        POST /api/equity/calculate
+        {
+            "players": [
+                {"id": "Hero", "hole_cards": ["Ah", "Kh"]},
+                {"id": "Villain", "hole_cards": ["Qd", "Qc"]}
+            ],
+            "board_cards": ["As", "Kd", "7c"],
+            "iterations": 20000
+        }
+        
+    Example Response:
+        {
+            "players": {
+                "Hero": {"win_percentage": 87.3, "tie_percentage": 0.5, "equity_percentage": 87.55},
+                "Villain": {"win_percentage": 12.2, "tie_percentage": 0.5, "equity_percentage": 12.45}
+            },
+            "iterations": 20000,
+            "board_cards": ["As", "Kd", "7c"],
+            "num_players": 2
+        }
+    """
+    try:
+        # Create calculator with specified iterations (use default if None)
+        calc = EquityCalculator(iterations=request.iterations or 20000)
+        
+        # Convert players to the format expected by equity calculator
+        players_hole_cards = [player.hole_cards for player in request.players]
+        
+        # Calculate equity (board parameter accepts None or List[str])
+        board_param = request.board_cards if request.board_cards else None
+        results = calc.calculate(
+            players_hole_cards=players_hole_cards,
+            board=board_param  # type: ignore
+        )
+        
+        # Map results from numeric indices to player IDs
+        player_results = {}
+        for idx, player in enumerate(request.players):
+            player_results[player.id] = results[idx]
+        
+        return {
+            "players": player_results,
+            "iterations": request.iterations or 20000,
+            "board_cards": request.board_cards if request.board_cards else [],
+            "num_players": len(request.players),
+            "note": "Results are approximate based on Monte Carlo simulation"
+        }
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Equity calculation error: {str(e)}"
+        )
+
 
 @router.post("/analyze")
 async def analyze_hand(request: HandAnalysisRequest):
@@ -636,5 +724,4 @@ PROVIDE COMPREHENSIVE HAND REVIEW:
    - Summary and final thoughts
 
 Be thorough, educational, and honest in the review. Focus on helping the player improve."""
-
     return prompt

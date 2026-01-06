@@ -1,11 +1,10 @@
 """
-FastAPI backend for Poker Learning App
+FastAPI backend for Poker Analysis App
 
-IMPORTANT: This backend contains NO poker strategy assumptions.
-All poker ranges are user-defined and loaded from JSON files.
+IMPORTANT: This backend contains NO hardcoded poker strategy.
+All poker decisions are loaded from user-defined JSON files in backend/data/ranges/
 
-To customize ranges, edit files in: backend/data/ranges/
-See backend/data/ranges/README.md for instructions.
+This is a pure data delivery layer with optional AI analysis features.
 """
 
 from fastapi import FastAPI
@@ -14,8 +13,8 @@ from routes import router
 from range_loader import range_loader
 
 app = FastAPI(
-    title="Poker Learning API",
-    description="Data-driven poker range viewer. All strategies are user-defined in JSON files.",
+    title="Poker Analysis API",
+    description="Data-driven poker analysis tool. All strategies are user-defined in JSON files.",
     version="1.0.0"
 )
 
@@ -40,7 +39,7 @@ def startup_event():
     No strategy is hardcoded in this backend.
     """
     print("=" * 60)
-    print("🃏  Poker Learning API - Starting Up")
+    print("🃏  Poker Analysis API - Starting Up")
     print("=" * 60)
     print()
     print("📂 Loading user-defined ranges from JSON files...")
@@ -57,7 +56,7 @@ def startup_event():
 @app.get("/")
 def read_root():
     return {
-        "message": "Poker Learning API - Data-Driven Range System",
+        "message": "Poker Analysis API - Data-Driven Range System",
         "status": "active",
         "version": "1.0.0",
         "note": "All poker ranges are user-defined and loaded from JSON files. No strategy is hardcoded."

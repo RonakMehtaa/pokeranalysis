@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import RangeViewer from './pages/RangeViewer'
 import DecisionChecker from './pages/DecisionChecker'
 import PostflopAnalysis from './pages/PostflopAnalysis'
+import EquityCalculator from './pages/EquityCalculator'
 import './App.css'
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
               <Link to="/ranges">Range Viewer</Link>
               <Link to="/checker">Decision Checker</Link>
               <Link to="/postflop">Postflop Analysis</Link>
+              <Link to="/equity">Equity Calculator</Link>
             </div>
           </div>
         </nav>
@@ -28,6 +30,7 @@ function App() {
             <Route path="/ranges" element={<RangeViewer />} />
             <Route path="/checker" element={<DecisionChecker />} />
             <Route path="/postflop" element={<PostflopAnalysis />} />
+            <Route path="/equity" element={<EquityCalculator />} />
           </Routes>
         </main>
       </div>

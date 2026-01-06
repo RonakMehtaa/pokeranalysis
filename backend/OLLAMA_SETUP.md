@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Poker Learning Tool integrates with **Ollama** to provide AI-powered hand analysis and explanations.
+The Poker Analysis Tool integrates with **Ollama** to provide AI-powered hand analysis and explanations.
 
 **IMPORTANT:** The LLM integration does NOT generate poker strategy. It only provides educational explanations based on user-defined range data from JSON files.
 

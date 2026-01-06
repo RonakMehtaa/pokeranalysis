@@ -1,7 +1,8 @@
 {
-  "name": "poker-learning-frontend",
+  "name": "poker-analysis-frontend",
+  "private": true,
   "version": "1.0.0",
-  "description": "Educational poker preflop learning tool",
+  "description": "Poker analysis tool for studying and improving your game",
   "type": "module",
   "scripts": {
     "dev": "vite",

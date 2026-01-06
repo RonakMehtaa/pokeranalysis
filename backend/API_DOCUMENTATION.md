@@ -1,4 +1,4 @@
-# Poker Learning Tool API Documentation
+# Poker Analysis Tool API Documentation
 
 ## Base URL
 ```
