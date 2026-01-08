@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from range_loader import range_loader
 from services.llm_client import ollama_client
 from services.equity_calculator import equity_calculator, EquityCalculator
-from models import PokerHandSchema, HandAnalysisRequest, PreflopDecisionRequest, LLMAnalysisRequest, EquityCalculatorRequest
+from models import PokerHandSchema, HandAnalysisRequest, PreflopDecisionRequest, LLMAnalysisRequest, EquityCalculatorRequest, ChatMessageRequest
 from typing import Literal
 from pathlib import Path
 
@@ -421,307 +421,231 @@ async def analyze_postflop_hand(
 
 def _construct_gto_prompt(hand_data: PokerHandSchema) -> str:
     """
-    Construct GTO-focused analysis prompt.
-    Focuses on balanced, game-theory optimal play.
+    Construct GTO-focused analysis prompt using template file.
     """
-    board = " ".join(hand_data.get_board())
+    # Load the GTO template
+    template = load_prompt_template("gto")
+    
+    # Build turn section if turn card exists
+    turn_section = ""
+    if hand_data.turn_card:
+        turn_section = f"\n\nTURN ({hand_data.turn_card}):\n{hand_data.turn_action}"
+    
+    # Build river section if river card exists
+    river_section = ""
+    if hand_data.river_card:
+        river_section = f"\n\nRIVER ({hand_data.river_card}):\n{hand_data.river_action}"
+    
+    # Get current street
     street = hand_data.get_street()
     
-    prompt = f"""You are an expert poker coach specializing in Game Theory Optimal (GTO) strategy.
-
-Analyze this {street} decision from a GTO perspective:
-
-HAND DETAILS:
-Table: {hand_data.table_type.value}
-Effective Stack: {hand_data.effective_stack_bb}bb
-Hero Position: {hand_data.hero_position.value}
-Hero Hand: {hand_data.hero_hand}
-Villains: {', '.join(v.value for v in hand_data.villain_positions)}
-
-PREFLOP:
-{hand_data.preflop_action}
-
-FLOP ({' '.join(hand_data.flop_board)}):
-{hand_data.flop_action}"""
-
-    if hand_data.turn_card:
-        prompt += f"""
-
-TURN ({hand_data.turn_card}):
-{hand_data.turn_action}"""
-
-    if hand_data.river_card:
-        prompt += f"""
-
-RIVER ({hand_data.river_card}):
-{hand_data.river_action}"""
-
-    prompt += f"""
-
-PROVIDE GTO ANALYSIS:
-
-1. RANGE ANALYSIS
-   - What does Hero's range look like on this {street}?
-   - What does Villain's range look like on this {street}?
-   - How does this specific hand ({hand_data.hero_hand}) fit into Hero's range?
-
-2. BOARD TEXTURE
-   - Analyze the board texture: {board}
-   - Which range benefits from this texture?
-   - What are the key equity considerations?
-
-3. OPTIMAL STRATEGY
-   - What is the GTO-recommended action on this {street}?
-   - What bet sizing should be used (if betting/raising)?
-   - How should this hand be balanced within the overall strategy?
-
-4. FREQUENCY CONSIDERATIONS
-   - At what frequency should Hero take each action?
-   - What hands should be mixed in similar spots?
-   - How does this prevent exploitation?
-
-5. KEY LEARNING POINTS
-   - What GTO principles apply to this hand?
-   - Common mistakes players make in this spot
-   - How this hand performs in the overall strategy
-
-Keep the analysis focused on balanced, unexploitable play. Use percentages and frequencies where applicable."""
-
+    # Replace template variables
+    prompt = template.replace("{{street}}", street)
+    prompt = prompt.replace("{{table_type}}", hand_data.table_type.value)
+    prompt = prompt.replace("{{effective_stack_bb}}", str(hand_data.effective_stack_bb))
+    prompt = prompt.replace("{{hero_position}}", hand_data.hero_position.value)
+    prompt = prompt.replace("{{hero_hand}}", hand_data.hero_hand)
+    prompt = prompt.replace("{{villain_positions}}", ', '.join(v.value for v in hand_data.villain_positions))
+    prompt = prompt.replace("{{preflop_action}}", hand_data.preflop_action)
+    prompt = prompt.replace("{{flop_board}}", ' '.join(hand_data.flop_board))
+    prompt = prompt.replace("{{flop_action}}", hand_data.flop_action)
+    prompt = prompt.replace("{{turn_section}}", turn_section)
+    prompt = prompt.replace("{{river_section}}", river_section)
+    
     return prompt
 
 
 def _construct_exploitative_prompt(hand_data: PokerHandSchema) -> str:
     """
-    Construct exploitative analysis prompt.
-    Focuses on adjustments based on common opponent tendencies.
+    Construct exploitative analysis prompt using template file.
     """
-    board = " ".join(hand_data.get_board())
+    # Load the exploitative template
+    template = load_prompt_template("exploitative")
+    
+    # Build turn section if turn card exists
+    turn_section = ""
+    if hand_data.turn_card:
+        turn_section = f"\n\nTURN ({hand_data.turn_card}):\n{hand_data.turn_action}"
+    
+    # Build river section if river card exists
+    river_section = ""
+    if hand_data.river_card:
+        river_section = f"\n\nRIVER ({hand_data.river_card}):\n{hand_data.river_action}"
+    
+    # Get current street
     street = hand_data.get_street()
     
-    prompt = f"""You are an expert poker coach specializing in exploitative strategy and opponent tendencies.
-
-Analyze this {street} decision with an exploitative approach:
-
-HAND DETAILS:
-Table: {hand_data.table_type.value}
-Effective Stack: {hand_data.effective_stack_bb}bb
-Hero Position: {hand_data.hero_position.value}
-Hero Hand: {hand_data.hero_hand}
-Villains: {', '.join(v.value for v in hand_data.villain_positions)}
-
-PREFLOP:
-{hand_data.preflop_action}
-
-FLOP ({' '.join(hand_data.flop_board)}):
-{hand_data.flop_action}"""
-
-    if hand_data.turn_card:
-        prompt += f"""
-
-TURN ({hand_data.turn_card}):
-{hand_data.turn_action}"""
-
-    if hand_data.river_card:
-        prompt += f"""
-
-RIVER ({hand_data.river_card}):
-{hand_data.river_action}"""
-
-    prompt += f"""
-
-PROVIDE EXPLOITATIVE ANALYSIS:
-
-1. OPPONENT TENDENCIES TO CONSIDER
-   - What common mistakes do opponents make in this spot?
-   - How do typical players at this level misplay this situation?
-   - What population tendencies can be exploited?
-
-2. EXPLOITATIVE ADJUSTMENTS
-   - Against a TIGHT/PASSIVE opponent: What's the best line?
-   - Against an AGGRESSIVE/LOOSE opponent: What's the best line?
-   - Against a CALLING STATION: What's the best line?
-   - Against a TIGHT/AGGRESSIVE opponent: What's the best line?
-
-3. ACTION RECOMMENDATION
-   - What is the most exploitative play on this {street}?
-   - How should bet sizing be adjusted to maximize EV?
-   - What future streets should be considered?
-
-4. HAND READING
-   - Based on the action, what hands is Villain likely to have?
-   - What hands would Villain play differently?
-   - How does this narrow their range?
-
-5. MAXIMIZING VALUE/MINIMIZING LOSS
-   - How can we extract maximum value with this hand?
-   - What are the key decision points?
-   - Common timing tells or bet sizing tells to watch for
-
-Focus on practical, exploitative adjustments that maximize profit against imperfect opponents."""
-
+    # Replace template variables
+    prompt = template.replace("{{street}}", street)
+    prompt = prompt.replace("{{table_type}}", hand_data.table_type.value)
+    prompt = prompt.replace("{{effective_stack_bb}}", str(hand_data.effective_stack_bb))
+    prompt = prompt.replace("{{hero_position}}", hand_data.hero_position.value)
+    prompt = prompt.replace("{{hero_hand}}", hand_data.hero_hand)
+    prompt = prompt.replace("{{villain_positions}}", ', '.join(v.value for v in hand_data.villain_positions))
+    prompt = prompt.replace("{{preflop_action}}", hand_data.preflop_action)
+    prompt = prompt.replace("{{flop_board}}", ' '.join(hand_data.flop_board))
+    prompt = prompt.replace("{{flop_action}}", hand_data.flop_action)
+    prompt = prompt.replace("{{turn_section}}", turn_section)
+    prompt = prompt.replace("{{river_section}}", river_section)
+    
     return prompt
 
 
 def _construct_exploitative_with_notes_prompt(hand_data: PokerHandSchema) -> str:
     """
-    Construct exploitative analysis with specific villain notes.
-    Uses the villain_notes field for targeted exploitation.
+    Construct exploitative analysis with specific villain notes using template file.
     """
-    board = " ".join(hand_data.get_board())
+    # Load the exploitative_with_notes template
+    template = load_prompt_template("exploitative_with_notes")
+    
+    # Build turn section if turn card exists
+    turn_section = ""
+    if hand_data.turn_card:
+        turn_section = f"\n\nTURN ({hand_data.turn_card}):\n{hand_data.turn_action}"
+    
+    # Build river section if river card exists
+    river_section = ""
+    if hand_data.river_card:
+        river_section = f"\n\nRIVER ({hand_data.river_card}):\n{hand_data.river_action}"
+    
+    # Get current street
     street = hand_data.get_street()
     
-    prompt = f"""You are an expert poker coach specializing in exploitative play against specific opponent tendencies.
-
-Analyze this {street} decision with focus on exploiting THIS specific opponent:
-
-HAND DETAILS:
-Table: {hand_data.table_type.value}
-Effective Stack: {hand_data.effective_stack_bb}bb
-Hero Position: {hand_data.hero_position.value}
-Hero Hand: {hand_data.hero_hand}
-Villains: {', '.join(v.value for v in hand_data.villain_positions)}
-
-VILLAIN NOTES/READS:
-{hand_data.villain_notes}
-
-PREFLOP:
-{hand_data.preflop_action}
-
-FLOP ({' '.join(hand_data.flop_board)}):
-{hand_data.flop_action}"""
-
-    if hand_data.turn_card:
-        prompt += f"""
-
-TURN ({hand_data.turn_card}):
-{hand_data.turn_action}"""
-
-    if hand_data.river_card:
-        prompt += f"""
-
-RIVER ({hand_data.river_card}):
-{hand_data.river_action}"""
-
-    prompt += f"""
-
-PROVIDE TARGETED EXPLOITATIVE ANALYSIS:
-
-1. VILLAIN-SPECIFIC READ
-   - How do the notes/reads affect this specific situation?
-   - What patterns has Villain shown that are relevant here?
-   - What is Villain's most likely hand range based on their tendencies?
-
-2. OPTIMAL EXPLOITATION STRATEGY
-   - Given these specific reads, what is the best action on this {street}?
-   - How should sizing be adjusted to exploit Villain's tendencies?
-   - What future streets need to be considered based on Villain's profile?
-
-3. DECISION TREE
-   - If Hero takes action X, how is Villain likely to respond?
-   - What backup plans are needed if Villain deviates?
-   - How can we maximize EV against THIS player?
-
-4. RISK ASSESSMENT
-   - What are the risks of this exploitative play?
-   - Could Villain be leveling/trapping?
-   - When should we revert to more balanced play?
-
-5. ADJUSTMENTS FOR FUTURE HANDS
-   - How might Villain adjust if we exploit them this way?
-   - What notes should we continue to gather?
-   - When to change our exploitation strategy?
-
-Focus heavily on the specific villain notes provided and how they create profitable exploits in this exact situation."""
-
+    # Replace template variables
+    prompt = template.replace("{{street}}", street)
+    prompt = prompt.replace("{{table_type}}", hand_data.table_type.value)
+    prompt = prompt.replace("{{effective_stack_bb}}", str(hand_data.effective_stack_bb))
+    prompt = prompt.replace("{{hero_position}}", hand_data.hero_position.value)
+    prompt = prompt.replace("{{hero_hand}}", hand_data.hero_hand)
+    prompt = prompt.replace("{{villain_positions}}", ', '.join(v.value for v in hand_data.villain_positions))
+    prompt = prompt.replace("{{preflop_action}}", hand_data.preflop_action)
+    prompt = prompt.replace("{{flop_board}}", ' '.join(hand_data.flop_board))
+    prompt = prompt.replace("{{flop_action}}", hand_data.flop_action)
+    prompt = prompt.replace("{{turn_section}}", turn_section)
+    prompt = prompt.replace("{{river_section}}", river_section)
+    prompt = prompt.replace("{{villain_notes}}", hand_data.villain_notes or "")
+    
     return prompt
 
 
 def _construct_review_prompt(hand_data: PokerHandSchema) -> str:
     """
-    Construct comprehensive hand review prompt.
-    Covers multiple perspectives and learning points.
+    Construct comprehensive hand review prompt using template file.
     """
-    board = " ".join(hand_data.get_board())
+    # Load the review template
+    template = load_prompt_template("review")
+    
+    # Build turn section if turn card exists
+    turn_section = ""
+    if hand_data.turn_card:
+        turn_section = f"\n\nTURN ({hand_data.turn_card}):\n{hand_data.turn_action}"
+    
+    # Build river section if river card exists
+    river_section = ""
+    if hand_data.river_card:
+        river_section = f"\n\nRIVER ({hand_data.river_card}):\n{hand_data.river_action}"
+    
+    # Get current street
     street = hand_data.get_street()
     
-    prompt = f"""You are an expert poker coach conducting a comprehensive hand review.
+    # Replace template variables
+    prompt = template.replace("{{street}}", street)
+    prompt = prompt.replace("{{table_type}}", hand_data.table_type.value)
+    prompt = prompt.replace("{{effective_stack_bb}}", str(hand_data.effective_stack_bb))
+    prompt = prompt.replace("{{hero_position}}", hand_data.hero_position.value)
+    prompt = prompt.replace("{{hero_hand}}", hand_data.hero_hand)
+    prompt = prompt.replace("{{villain_positions}}", ', '.join(v.value for v in hand_data.villain_positions))
+    prompt = prompt.replace("{{preflop_action}}", hand_data.preflop_action)
+    prompt = prompt.replace("{{flop_board}}", ' '.join(hand_data.flop_board))
+    prompt = prompt.replace("{{flop_action}}", hand_data.flop_action)
+    prompt = prompt.replace("{{turn_section}}", turn_section)
+    prompt = prompt.replace("{{river_section}}", river_section)
+    
+    return prompt
 
-Review this complete hand with focus on learning and improvement:
+@router.post("/chat/hand")
+async def chat_about_hand(request: ChatMessageRequest):
+    """
+    Chat endpoint for hand-scoped follow-up questions.
+    
+    This endpoint allows users to ask questions about a specific analyzed hand.
+    The hand context is immutable and all responses stay within that context.
+    
+    IMPORTANT: The LLM is instructed to ONLY answer questions about the specific hand
+    provided in hand_context. It must not introduce new facts or reference other hands.
+    
+    Parameters:
+    - hand_id: Unique identifier for the hand
+    - message: User's question about the hand
+    - hand_context: Complete immutable hand context
+    
+    Returns:
+    - Focused answer about the specific hand from the LLM
+    """
+    
+    # Build board string
+    board_parts = []
+    flop_cards = request.hand_context.board.get("flop", [])
+    turn_card = request.hand_context.board.get("turn")
+    river_card = request.hand_context.board.get("river")
+    
+    if flop_cards:
+        board_parts.append(f"Flop: {' '.join(flop_cards)}")
+    if turn_card:
+        board_parts.append(f"Turn: {turn_card}")
+    if river_card:
+        board_parts.append(f"River: {river_card}")
+    
+    board_str = ", ".join(board_parts)
+    
+    # Construct hand-scoped prompt
+    prompt = f"""You are a poker coach answering a follow-up question about a SPECIFIC hand that has already been analyzed.
 
-HAND DETAILS:
-Table: {hand_data.table_type.value}
-Effective Stack: {hand_data.effective_stack_bb}bb
-Hero Position: {hand_data.hero_position.value}
-Hero Hand: {hand_data.hero_hand}
-Villains: {', '.join(v.value for v in hand_data.villain_positions)}
+CRITICAL INSTRUCTIONS:
+- ONLY answer questions about THIS specific hand
+- DO NOT introduce new facts or scenarios
+- DO NOT reference other hands or situations
+- Stay strictly within the provided hand context
+- If the question is unrelated to this hand, politely redirect to the hand context
 
-COMPLETE HAND HISTORY:
+HAND CONTEXT (IMMUTABLE):
+Hand ID: {request.hand_context.hand_id}
+Game: {request.hand_context.game_type}
+Stack: {request.hand_context.stack_depth}
+Position: {request.hand_context.hero_position}
+Hero Hand: {request.hand_context.hero_hand}
+Board: {board_str}
+Analysis Mode: {request.hand_context.analysis_mode}"""
 
-PREFLOP:
-{hand_data.preflop_action}
-
-FLOP ({' '.join(hand_data.flop_board)}):
-{hand_data.flop_action}"""
-
-    if hand_data.turn_card:
-        prompt += f"""
-
-TURN ({hand_data.turn_card}):
-{hand_data.turn_action}"""
-
-    if hand_data.river_card:
-        prompt += f"""
-
-RIVER ({hand_data.river_card}):
-{hand_data.river_action}"""
-
-    if hand_data.villain_notes:
-        prompt += f"""
-
-VILLAIN NOTES:
-{hand_data.villain_notes}"""
-
+    if request.hand_context.range_preset:
+        prompt += f"\nRange Preset: {request.hand_context.range_preset}"
+    
+    if request.hand_context.villain_notes:
+        prompt += f"\nVillain Notes: {request.hand_context.villain_notes}"
+    
     prompt += f"""
 
-PROVIDE COMPREHENSIVE HAND REVIEW:
+ACTION SEQUENCE:
+{request.hand_context.actions}
 
-1. PREFLOP ANALYSIS
-   - Was the preflop action standard?
-   - Any concerns with the preflop play?
-   - Position and range considerations
+USER'S QUESTION:
+{request.message}
 
-2. STREET-BY-STREET BREAKDOWN
-   - Analyze each street's decision
-   - Was the action taken optimal?
-   - What alternatives should have been considered?
-   - Critical decision points
+Provide a clear, concise answer focused ONLY on this specific hand. Keep your response educational and helpful."""
 
-3. MULTIPLE PERSPECTIVES
-   - GTO perspective: What does solver strategy suggest?
-   - Exploitative perspective: How could opponent tendencies be exploited?
-   - Risk management: Was variance handled appropriately?
-
-4. HAND STRENGTH THROUGHOUT
-   - How did hand strength change on each street?
-   - When was Hero ahead/behind?
-   - Equity considerations and how they evolved
-
-5. ALTERNATIVE LINES
-   - What other lines could have been taken?
-   - Compare EV of different approaches
-   - Which line is best and why?
-
-6. KEY LESSONS
-   - What are the main takeaways from this hand?
-   - What concepts does this hand teach?
-   - How to recognize similar spots in the future?
-   - Common mistakes to avoid
-
-7. OVERALL ASSESSMENT
-   - Grade the play (A+ to F)
-   - Biggest mistake (if any)
-   - Best decision made
-   - Summary and final thoughts
-
-Be thorough, educational, and honest in the review. Focus on helping the player improve."""
-    return prompt
+    try:
+        # Send to LLM
+        llm_response = await ollama_client.analyze_hand(prompt)
+        
+        return {
+            "hand_id": request.hand_id,
+            "question": request.message,
+            "answer": llm_response,
+            "analysis_mode": request.hand_context.analysis_mode
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Chat service error: {str(e)}"
+        )

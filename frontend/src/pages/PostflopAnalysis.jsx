@@ -17,6 +17,12 @@ const PostflopAnalysis = () => {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
+  
+  // Chat state
+  const [handContext, setHandContext] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
 
   const positions = ['UTG', 'UTG+1', 'UTG+2', 'MP', 'MP+1', 'CO', 'BTN', 'SB', 'BB'];
   const ranks = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
@@ -96,6 +102,8 @@ const PostflopAnalysis = () => {
     setLoading(true);
     setError(null);
     setResponse(null);
+    setChatMessages([]); // Clear previous chat
+    setHandContext(null); // Clear previous hand context
 
     try {
       const boardCardsArray = formData.boardCards.split(' ').filter(c => c);
@@ -184,7 +192,27 @@ const PostflopAnalysis = () => {
       console.log('Analysis:', data.analysis);
       
       setResponse(data.analysis);
-      console.log('✓ Analysis set successfully');
+      
+      // Create immutable hand context for chat
+      const context = {
+        hand_id: crypto.randomUUID(),
+        game_type: `${formData.tableType} cash`,
+        stack_depth: `${formData.effectiveStack}bb`,
+        hero_position: formData.position,
+        hero_hand: heroHandNotation,
+        board: {
+          flop: flopBoard,
+          turn: turnCard,
+          river: riverCard
+        },
+        actions: formData.actions,
+        analysis_mode: activeTab.toUpperCase(),
+        range_preset: null,
+        villain_notes: formData.villainNotes || null
+      };
+      
+      setHandContext(context);
+      console.log('✓ Analysis and hand context set successfully');
     } catch (err) {
       console.error('=== ERROR CAUGHT ===');
       console.error('Error type:', err.constructor.name);
@@ -196,6 +224,51 @@ const PostflopAnalysis = () => {
       setLoading(false);
       console.log('=== FORM SUBMISSION ENDED ===');
     }
+  };
+
+  const handleChatSubmit = async (message) => {
+    if (!message.trim() || !handContext || chatLoading) return;
+    
+    const userMessage = { role: 'user', content: message };
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setChatLoading(true);
+    
+    try {
+      const res = await fetch('http://localhost:8000/api/chat/hand', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          hand_id: handContext.hand_id,
+          message: message,
+          hand_context: handContext
+        }),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new Error(errorData.detail || `Server error: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      const assistantMessage = { role: 'assistant', content: data.answer };
+      setChatMessages(prev => [...prev, assistantMessage]);
+    } catch (err) {
+      console.error('Chat error:', err);
+      const errorMessage = { 
+        role: 'assistant', 
+        content: `Error: ${err.message}. Please try again.` 
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleSuggestedQuestion = (question) => {
+    handleChatSubmit(question);
   };
 
   // Helper function to convert cards to hand notation
@@ -277,6 +350,14 @@ const PostflopAnalysis = () => {
 
   const heroCardsArray = formData.heroCards.split(' ').filter(c => c);
   const boardCardsArray = formData.boardCards.split(' ').filter(c => c);
+  
+  const suggestedQuestions = [
+    "Why is this a check?",
+    "What hands does villain represent?",
+    "What mistakes do live players make here?",
+    "How should I adjust my bet sizing?",
+    "What are the key equity considerations?"
+  ];
 
   return (
     <div className="page postflop-analysis">
@@ -490,25 +571,25 @@ const PostflopAnalysis = () => {
               placeholder="Describe the action sequence (e.g., 'Hero checks, Villain bets 50% pot, Hero calls')"
               value={formData.actions}
               onChange={(e) => setFormData({ ...formData, actions: e.target.value })}
-              rows={4}
             />
           </div>
 
           {/* Villain Notes */}
           <div className="control-group">
-            <label>Villain Notes (Optional)</label>
+            <label>Villain Notes (optional)</label>
             <textarea
-              className="action-textarea"
-              placeholder="Add any relevant notes about villain's tendencies..."
+              className="notes-textarea"
+              placeholder="Add any notes about the villain (e.g., 'Aggressive player, often bluffs')"
               value={formData.villainNotes}
               onChange={(e) => setFormData({ ...formData, villainNotes: e.target.value })}
-              rows={3}
             />
           </div>
 
-          <button className="submit-btn" type="submit" disabled={loading}>
-            {loading ? 'Analyzing…' : 'Analyze Hand'}
-          </button>
+          <div className="control-group">
+            <button type="submit" className="submit-btn" disabled={loading}>
+              {loading ? 'Analyzing...' : 'Analyze Hand'}
+            </button>
+          </div>
         </form>
       </div>
 
@@ -522,10 +603,85 @@ const PostflopAnalysis = () => {
       <div className={`result-area ${response ? 'result-filled' : ''}`}>
         {loading && <div className="loading">Processing your hand…</div>}
         {!loading && response && (
-          <div className="response-container">
-            <h2>Analysis Result</h2>
-            <div className="response-content">{formatResponse(response)}</div>
-          </div>
+          <>
+            <div className="response-container">
+              <h2>Analysis Result</h2>
+              <div className="response-content">{formatResponse(response)}</div>
+            </div>
+            
+            {/* Chat Panel */}
+            {handContext && (
+              <div className="chat-panel">
+                <h3 className="chat-header">💬 Ask Follow-up Questions</h3>
+                <div className="hand-summary">
+                  <strong>Hand:</strong> {handContext.hero_hand} in {handContext.hero_position} | 
+                  <strong> Board:</strong> {[...handContext.board.flop, handContext.board.turn, handContext.board.river].filter(Boolean).join(' ')} | 
+                  <strong> Mode:</strong> {handContext.analysis_mode}
+                </div>
+                
+                {chatMessages.length === 0 && (
+                  <div className="suggested-questions">
+                    <p className="suggestions-label">Try asking:</p>
+                    <div className="suggestions-grid">
+                      {suggestedQuestions.map((q, idx) => (
+                        <button
+                          key={idx}
+                          className="suggested-question-btn"
+                          onClick={() => handleSuggestedQuestion(q)}
+                          disabled={chatLoading}
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="chat-messages">
+                  {chatMessages.map((msg, idx) => (
+                    <div key={idx} className={`chat-message ${msg.role}`}>
+                      <div className="message-label">
+                        {msg.role === 'user' ? '👤 You' : '🎓 Coach'}
+                      </div>
+                      <div className="message-content">
+                        {formatResponse(msg.content)}
+                      </div>
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div className="chat-message assistant">
+                      <div className="message-label">🎓 Coach</div>
+                      <div className="message-content loading">Thinking...</div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="chat-input-container">
+                  <input
+                    type="text"
+                    className="chat-input"
+                    placeholder="Ask a question about this hand..."
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleChatSubmit(chatInput);
+                      }
+                    }}
+                    disabled={chatLoading}
+                  />
+                  <button
+                    className="chat-send-btn"
+                    onClick={() => handleChatSubmit(chatInput)}
+                    disabled={chatLoading || !chatInput.trim()}
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
         {!loading && !response && !error && (
           <div className="loading">Submit a hand to see analysis here.</div>

@@ -66,6 +66,13 @@ class OllamaClient:
             print(f"📤 Sending request to Ollama at {self.generate_url}")
             print(f"   Model: {self.model}, Timeout: {self.timeout}s")
             
+            # Log the full prompt being sent
+            print("\n" + "="*80)
+            print("📝 FULL PROMPT BEING SENT TO OLLAMA:")
+            print("="*80)
+            print(prompt)
+            print("="*80 + "\n")
+            
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
                     self.generate_url,

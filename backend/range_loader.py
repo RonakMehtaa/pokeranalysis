@@ -57,7 +57,7 @@ ALL_HANDS = VALID_PAIRS + VALID_SUITED + VALID_OFFSUIT  # 169 hands total
 VALID_ACTIONS = ["raise", "call", "fold", "3bet"]
 VALID_TABLE_TYPES = ["6max", "9max"]
 VALID_POSITIONS_6MAX = ["UTG", "MP", "CO", "BTN", "SB", "BB"]
-VALID_POSITIONS_9MAX = ["UTG", "UTG+1", "MP", "MP+1", "CO", "BTN", "SB", "BB"]
+VALID_POSITIONS_9MAX = ["UTG", "UTG+1", "MP", "MP+1", "HJ", "CO", "BTN", "SB", "BB"]
 VALID_ACTION_TYPES = ["open", "call", "3bet"]
 
 

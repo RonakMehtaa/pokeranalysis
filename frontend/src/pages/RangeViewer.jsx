@@ -10,7 +10,7 @@ function RangeViewer() {
   const [error, setError] = useState(null)
 
   const positions6max = ['UTG', 'MP', 'CO', 'BTN', 'SB', 'BB']
-  const positions9max = ['UTG', 'UTG+1', 'MP', 'MP+1', 'CO', 'BTN', 'SB', 'BB']
+  const positions9max = ['UTG', 'UTG+1', 'MP', 'MP+1', 'HJ', 'CO', 'BTN', 'SB', 'BB']
   const positions = tableType === '6max' ? positions6max : positions9max
 
   // Generate the 13x13 hand matrix layout
@@ -47,8 +47,15 @@ function RangeViewer() {
       setLoading(true)
       setError(null)
       try {
+        // Properly encode URL parameters to handle + characters in positions like UTG+1 and MP+1
+        const params = new URLSearchParams({
+          table_type: tableType,
+          position: position,
+          action: action
+        })
+        
         const response = await fetch(
-          `http://localhost:8000/api/range?table_type=${tableType}&position=${position}&action=${action}`
+          `http://localhost:8000/api/range?${params.toString()}`
         )
         
         if (!response.ok) {

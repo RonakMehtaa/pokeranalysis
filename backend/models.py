@@ -518,3 +518,82 @@ class EquityCalculatorRequest(BaseModel):
                 "iterations": 20000
             }
         }
+
+
+class HandContextSchema(BaseModel):
+    """
+    Immutable hand context for chat feature.
+    This context is created once per analysis and reused for all follow-up questions.
+    """
+    hand_id: str = Field(..., description="Unique identifier for this hand")
+    game_type: str = Field(..., description="Game type (e.g., '6-max cash')")
+    stack_depth: str = Field(..., description="Stack depth (e.g., '100bb')")
+    hero_position: str = Field(..., description="Hero's position")
+    hero_hand: str = Field(..., description="Hero's hand notation")
+    board: dict = Field(
+        ...,
+        description="Board cards by street: {'flop': [...], 'turn': str|None, 'river': str|None}"
+    )
+    actions: str = Field(..., description="Complete action sequence")
+    analysis_mode: str = Field(..., description="Analysis type: GTO, Exploitative, Review")
+    range_preset: Optional[str] = Field(None, description="Range preset used (if any)")
+    villain_notes: Optional[str] = Field(None, description="Villain notes (if any)")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "hand_id": "550e8400-e29b-41d4-a716-446655440000",
+                "game_type": "6-max cash",
+                "stack_depth": "100bb",
+                "hero_position": "CO",
+                "hero_hand": "AhKh",
+                "board": {
+                    "flop": ["7h", "6h", "8c"],
+                    "turn": "Qd",
+                    "river": None
+                },
+                "actions": "Preflop: Hero raises, BB calls. Flop: BB checks, Hero bets, BB raises.",
+                "analysis_mode": "GTO",
+                "range_preset": "Book X – 6max",
+                "villain_notes": None
+            }
+        }
+
+
+class ChatMessageRequest(BaseModel):
+    """Request model for hand-scoped chat messages."""
+    hand_id: str = Field(..., description="Hand ID this question is about")
+    message: str = Field(
+        ..., 
+        min_length=1,
+        max_length=500,
+        description="User's question about the hand"
+    )
+    hand_context: HandContextSchema = Field(
+        ...,
+        description="Immutable hand context (never modified during chat)"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "hand_id": "550e8400-e29b-41d4-a716-446655440000",
+                "message": "Why is this a check?",
+                "hand_context": {
+                    "hand_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "game_type": "6-max cash",
+                    "stack_depth": "100bb",
+                    "hero_position": "CO",
+                    "hero_hand": "AhKh",
+                    "board": {
+                        "flop": ["7h", "6h", "8c"],
+                        "turn": "Qd",
+                        "river": None
+                    },
+                    "actions": "Preflop: Hero raises, BB calls. Flop: BB checks, Hero bets, BB raises.",
+                    "analysis_mode": "GTO",
+                    "range_preset": "Book X – 6max",
+                    "villain_notes": None
+                }
+            }
+        }
